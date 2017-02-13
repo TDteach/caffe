@@ -1,5 +1,5 @@
-#ifndef CAFFE_IMAGE_DATA_LAYER_HPP_
-#define CAFFE_IMAGE_DATA_LAYER_HPP_
+#ifndef CAFFE_NUMBER_SERIES_DATA_LAYER_HPP_
+#define CAFFE_NUMBER_SERIES_DATA_LAYER_HPP_
 
 #include <string>
 #include <utility>
@@ -12,9 +12,6 @@
 #include "caffe/layers/base_data_layer.hpp"
 #include "caffe/proto/caffe.pb.h"
 
-#ifdef USE_OPENCV
-#include "caffe/util/TDTools.h"
-
 namespace caffe {
 
 /**
@@ -23,37 +20,26 @@ namespace caffe {
  * TODO(dox): thorough documentation for Forward and proto params.
  */
 template <typename Dtype>
-class ImageDataLayer : public BasePrefetchingDataLayer<Dtype> {
+class NumberSeriesDataLayer : public BasePrefetchingDataLayer<Dtype> {
  public:
-  explicit ImageDataLayer(const LayerParameter& param)
+  explicit NumberSeriesDataLayer(const LayerParameter& param)
       : BasePrefetchingDataLayer<Dtype>(param) {}
-  virtual ~ImageDataLayer();
+  virtual ~NumberSeriesDataLayer();
   virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
 
-  virtual inline const char* type() const { return "ImageData"; }
+  virtual inline const char* type() const { return "NumberSeriesData"; }
   virtual inline int ExactNumBottomBlobs() const { return 0; }
   virtual inline int ExactNumTopBlobs() const { return 2; }
 
  protected:
-  shared_ptr<Caffe::RNG> prefetch_rng_;
-  shared_ptr<Caffe::RNG> prefetch_rng_ldmk_;
-  virtual void ShuffleImages();
   virtual void load_batch(Batch<Dtype>* batch);
 
-  vector<std::pair<std::string, int> > lines_;
+  vector<int> origin_;
   int lines_id_;
-  int n_images_;
-  int n_landmarks_;
-  int mm_height_, mm_width_;
-  FacialPose meanpose_;
-  vector<FacialPose> landmarks_;
 };
 
 
 }  // namespace caffe
 
-
-#endif // USE_OPENCV
-
-#endif  // CAFFE_IMAGE_DATA_LAYER_HPP_
+#endif //CAFFE_NUMBER_SERIES_DATA_LAYER_HPP_

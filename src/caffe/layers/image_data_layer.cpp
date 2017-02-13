@@ -40,7 +40,9 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   string line;
   size_t pos;
   int label;
+  n_images_ = 0;
   while (std::getline(infile, line)) {
+    n_images_++;
     pos = line.find_last_of(' ');
     label = atoi(line.substr(pos + 1).c_str());
     lines_.push_back(std::make_pair(line.substr(0, pos), label));
@@ -48,11 +50,46 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   CHECK(!lines_.empty()) << "File is empty";
 
+  /* Added by TDteach
+   * Uesd to change the origin image into meanpose sense
+   */
+  n_landmarks_ = this->layer_param_.image_data_param().n_landmarks();
+  if (n_landmarks_ > 0) {
+    string lkfile = this->layer_param_.image_data_param().landmarks();
+    string mpfile = this->layer_param_.image_data_param().meanpose();
+
+    meanpose_.resize(n_landmarks_);
+    FILE *fid;
+    fid = fopen(mpfile.c_str(),"r");
+    fscanf(fid,"%d%d", &mm_width_, &mm_height_);
+    for (int i = 0; i < n_landmarks_; i++) { 
+      fscanf(fid,"%f%f", &meanpose_[i].x, &meanpose_[i].y);
+    }
+    fclose(fid);
+
+    fid = fopen(lkfile.c_str(),"r");
+    for (int i = 0; i < n_images_; i++) {
+      FacialPose tmp;
+      tmp.resize(n_landmarks_);
+      for (int j = 0; j < n_landmarks_; j++) {
+        fscanf(fid,"%f%f", &tmp[j].x, &tmp[j].y);
+      }
+      landmarks_.push_back(tmp);
+    }
+    fclose(fid);
+
+  }
+  //===============split line=====================================
+
+
   if (this->layer_param_.image_data_param().shuffle()) {
     // randomly shuffle data
     LOG(INFO) << "Shuffling data";
     const unsigned int prefetch_rng_seed = caffe_rng_rand();
     prefetch_rng_.reset(new Caffe::RNG(prefetch_rng_seed));
+    if (n_landmarks_ > 0) {
+      prefetch_rng_ldmk_.reset(new Caffe::RNG(prefetch_rng_seed));
+    }
     ShuffleImages();
   } else {
     if (this->phase_ == TRAIN && Caffe::solver_rank() > 0 &&
@@ -103,6 +140,11 @@ void ImageDataLayer<Dtype>::ShuffleImages() {
   caffe::rng_t* prefetch_rng =
       static_cast<caffe::rng_t*>(prefetch_rng_->generator());
   shuffle(lines_.begin(), lines_.end(), prefetch_rng);
+  if (n_landmarks_ > 0) {
+    caffe::rng_t* prefetch_rng_ldmk =
+        static_cast<caffe::rng_t*>(prefetch_rng_ldmk_->generator());
+    shuffle(landmarks_.begin(), landmarks_.end(), prefetch_rng_ldmk);
+  }
 }
 
 // This function is called on prefetch thread
@@ -143,9 +185,25 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     // get a blob
     timer.Start();
     CHECK_GT(lines_size, lines_id_);
+
+    /* modified by TDteach
     cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
         new_height, new_width, is_color);
     CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
+    */
+    cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
+        0, 0, is_color);
+    CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
+    if (n_landmarks_ > 0) {
+      cv::Mat trans;
+      TDTOOLS::calcTransMat(landmarks_[lines_id_], meanpose_, trans);
+      TDTOOLS::cropImg(cv_img, mm_height_, mm_width_, trans);
+    }
+    if (new_width > 0 && new_height > 0) {
+      cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
+    }
+    //=======================split line====================================
+
     read_time += timer.MicroSeconds();
     timer.Start();
     // Apply transformations (mirror, crop...) to the image

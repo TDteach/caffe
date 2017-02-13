@@ -406,7 +406,45 @@ message LayerParameter {
   optional ThresholdParameter threshold_param = 128;
   optional TileParameter tile_param = 138;
   optional WindowDataParameter window_data_param = 129;
+
+//added by TDteach
+  optional NumberSeriesDataParameter number_series_data_param = 301;
+  optional AttackLossParameter attack_loss_param = 302;
+  optional AttackParameter attack_param = 303;
+  optional DataReaderParameter data_reader_param = 304;
+//=====================================================
+
 }
+
+//added by TDteach
+
+message NumberSeriesDataParameter {
+  optional string source = 1;
+  optional uint32 batch_size = 4 [default = 1];
+  optional uint32 length = 9 [default = 128];
+  optional uint32 after_k = 10 [default = 4];
+}
+
+message AttackLossParameter {
+  optional int32 tgt_class = 1 [default = 0];
+  optional string source = 2;
+}
+
+message AttackParameter {
+  optional FillerParameter weight_filler = 1; // The filler for the weight
+}
+
+message DataReaderParameter {
+  optional bool constant = 1 [default = false];
+  optional int32 start_id = 2 [default = 0];
+  optional string source = 3;
+}
+
+
+//=====================================================
+
+
+
 
 // Message that stores parameters used to apply transformation
 // to the data layer's data
@@ -801,6 +839,15 @@ message ImageDataParameter {
   // data.
   optional bool mirror = 6 [default = false];
   optional string root_folder = 12 [default = ""];
+
+//added by TDteach
+
+  optional uint32 n_landmarks = 13 [default = 0];
+  optional string meanpose = 14 [default = ""];
+  optional string landmarks = 15 [default = ""];
+
+//===========================
+
 }
 
 message InfogainLossParameter {
