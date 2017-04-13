@@ -412,6 +412,7 @@ message LayerParameter {
   optional AttackLossParameter attack_loss_param = 302;
   optional AttackParameter attack_param = 303;
   optional DataReaderParameter data_reader_param = 304;
+  optional LinearLossParameter linear_loss_param = 305;
 //=====================================================
 
 }
@@ -438,6 +439,10 @@ message DataReaderParameter {
   optional bool constant = 1 [default = false];
   optional int32 start_id = 2 [default = 0];
   optional string source = 3;
+}
+
+message LinearLossParameter {
+  optional float alpha = 1 [default = 0];
 }
 
 
@@ -845,6 +850,7 @@ message ImageDataParameter {
   optional uint32 n_landmarks = 13 [default = 0];
   optional string meanpose = 14 [default = ""];
   optional string landmarks = 15 [default = ""];
+  optional float shift_scale = 16 [default = 0];
 
 //===========================
 

@@ -53,6 +53,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   /* Added by TDteach
    * Uesd to change the origin image into meanpose sense
    */
+  shift_scale_ = this->layer_param_.image_data_param().shift_scale();
   n_landmarks_ = this->layer_param_.image_data_param().n_landmarks();
   if (n_landmarks_ > 0) {
     string lkfile = this->layer_param_.image_data_param().landmarks();
@@ -112,6 +113,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
                                     new_height, new_width, is_color);
   CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
+
   // Use data_transformer to infer the expected blob shape from a cv_image.
   vector<int> top_shape = this->data_transformer_->InferBlobShape(cv_img);
   this->transformed_data_.Reshape(top_shape);
@@ -197,11 +199,25 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     if (n_landmarks_ > 0) {
       cv::Mat trans;
       TDTOOLS::calcTransMat(landmarks_[lines_id_], meanpose_, trans);
+      /* apply shift transformation
+       */
+      float shift_x = (rand()%1000/500.0-1)*shift_scale_;
+      float shift_y = (rand()%1000/500.0-1)*shift_scale_;
+      trans.at<float>(0,2) += shift_x*mm_width_;
+      trans.at<float>(1,2) += shift_y*mm_height_;
+
       TDTOOLS::cropImg(cv_img, mm_height_, mm_width_, trans);
     }
     if (new_width > 0 && new_height > 0) {
       cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
     }
+
+    /*debug info image
+     */
+    //char bb[100];
+    //sprintf(bb,"/home/tangdi/tmp/%d.png",lines_id_);
+    //string fn(bb);
+    //cv::imwrite(fn, cv_img);
     //=======================split line====================================
 
     read_time += timer.MicroSeconds();
