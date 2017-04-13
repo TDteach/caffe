@@ -22,8 +22,7 @@ class LinearLossLayer : public LossLayer<Dtype> {
       const vector<Blob<Dtype>*>& top);
 
   virtual inline const char* type() const { return "LinearLoss"; }
-  virtual inline int ExactNumBottomBlobs() const {return 1; }
-  virtual inline int ExactNumTopBlobs() const {return 2; }
+  virtual inline int ExactNumBottomBlobs() const {return 2; }
 
  protected:
   /// @copydoc EuclideanLossLayer
@@ -35,10 +34,15 @@ class LinearLossLayer : public LossLayer<Dtype> {
 
   Dtype alpha;
   Dtype sum_bound_loss;
+  Dtype sum_diff_loss;
+
   vector<Dtype> tgt_dot;
   vector<Dtype> l2_squre;
   vector<Dtype> l2_norm;
   vector<Dtype> sign;
+
+  vector<Dtype> diff_loss;
+  vector<Dtype> bound_loss;
 
 };
 
