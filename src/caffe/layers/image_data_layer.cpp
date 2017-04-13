@@ -92,7 +92,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     for (int i = 0; i < n_images_; i++) {
       if (lines_[i].second == linear_src_label_ || lines_[i].second == linear_dst_label_) {
         cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[i].first,
-        0, 0, is_color);
+            0, 0, is_color);
         CHECK(cv_img.data) << "Could not load " << lines_[i].first;
         if (n_landmarks_ > 0) {
           cv::Mat trans;
