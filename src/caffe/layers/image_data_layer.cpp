@@ -18,8 +18,7 @@
 namespace caffe {
 
 template <typename Dtype>
-ImageDataLayer<Dtype>::~ImageDataLayer<Dtype>() {
-  this->StopInternalThread();
+ImageDataLayer<Dtype>::~ImageDataLayer<Dtype>() { this->StopInternalThread();
 }
 
 template <typename Dtype>
@@ -46,6 +45,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     pos = line.find_last_of(' ');
     label = atoi(line.substr(pos + 1).c_str());
     lines_.push_back(std::make_pair(line.substr(0, pos), label));
+    //if (n_images_ == 1000) break;
   }
 
   CHECK(!lines_.empty()) << "File is empty";
@@ -53,6 +53,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   /* Added by TDteach
    * Uesd to change the origin image into meanpose sense
    */
+  int in_state;
   n_landmarks_ = this->layer_param_.image_data_param().n_landmarks();
   if (n_landmarks_ > 0) {
     string lkfile = this->layer_param_.image_data_param().landmarks();
@@ -61,9 +62,9 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     meanpose_.resize(n_landmarks_);
     FILE *fid;
     fid = fopen(mpfile.c_str(),"r");
-    fscanf(fid,"%d%d", &mm_width_, &mm_height_);
+    in_state = fscanf(fid,"%d%d", &mm_width_, &mm_height_);
     for (int i = 0; i < n_landmarks_; i++) { 
-      fscanf(fid,"%f%f", &meanpose_[i].x, &meanpose_[i].y);
+      in_state = fscanf(fid,"%f%f", &meanpose_[i].x, &meanpose_[i].y);
     }
     fclose(fid);
 
@@ -72,13 +73,46 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       FacialPose tmp;
       tmp.resize(n_landmarks_);
       for (int j = 0; j < n_landmarks_; j++) {
-        fscanf(fid,"%f%f", &tmp[j].x, &tmp[j].y);
+        in_state = fscanf(fid,"%f%f", &tmp[j].x, &tmp[j].y);
       }
       landmarks_.push_back(tmp);
     }
     fclose(fid);
-
   }
+  CHECK_GT(in_state, 0);
+
+
+  src_imgs_.clear();
+  dst_imgs_.clear();
+  linear_data_ratio_ = this->layer_param_.image_data_param().linear_data_ratio();
+  if (linear_data_ratio_ > 0) {
+    linear_src_label_ = this->layer_param_.image_data_param().linear_src_label();
+    linear_dst_label_ = this->layer_param_.image_data_param().linear_dst_label();
+
+    for (int i = 0; i < n_images_; i++) {
+      if (lines_[i].second == linear_src_label_ || lines_[i].second == linear_dst_label_) {
+        cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[i].first,
+        0, 0, is_color);
+        CHECK(cv_img.data) << "Could not load " << lines_[i].first;
+        if (n_landmarks_ > 0) {
+          cv::Mat trans;
+          TDTOOLS::calcTransMat(landmarks_[i], meanpose_, trans);
+          TDTOOLS::cropImg(cv_img, mm_height_, mm_width_, trans);
+        }
+        if (new_width > 0 && new_height > 0) {
+          cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
+        }   
+
+        if (lines_[i].second == linear_src_label_) {
+          src_imgs_.push_back(cv_img);
+        }
+        if (lines_[i].second == linear_dst_label_) {
+          dst_imgs_.push_back(cv_img);
+        }
+      }
+    }
+  }
+  
   //===============split line=====================================
 
 
@@ -128,7 +162,9 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       << top[0]->channels() << "," << top[0]->height() << ","
       << top[0]->width();
   // label
-  vector<int> label_shape(1, batch_size);
+  label_size_ = this->layer_param_.image_data_param().label_size();
+  vector<int> label_shape(2, batch_size);
+  label_shape[1] = label_size_;
   top[1]->Reshape(label_shape);
   for (int i = 0; i < this->prefetch_.size(); ++i) {
     this->prefetch_[i]->label_.Reshape(label_shape);
@@ -164,6 +200,7 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   const bool is_color = image_data_param.is_color();
   string root_folder = image_data_param.root_folder();
 
+
   // Reshape according to the first image of each batch
   // on single input batches allows for inputs of varying dimension.
   cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
@@ -176,33 +213,71 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   top_shape[0] = batch_size;
   batch->data_.Reshape(top_shape);
 
+  vector<int> label_shape(2,batch_size);
+  label_shape[1] = label_size_;
+  batch->label_.Reshape(label_shape);
+
   Dtype* prefetch_data = batch->data_.mutable_cpu_data();
   Dtype* prefetch_label = batch->label_.mutable_cpu_data();
 
   // datum scales
+
+  srand((unsigned)time(NULL));
   const int lines_size = lines_.size();
   for (int item_id = 0; item_id < batch_size; ++item_id) {
     // get a blob
     timer.Start();
     CHECK_GT(lines_size, lines_id_);
 
-    /* modified by TDteach
-    cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
-        new_height, new_width, is_color);
-    CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
-    */
-    cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
-        0, 0, is_color);
-    CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
-    if (n_landmarks_ > 0) {
-      cv::Mat trans;
-      TDTOOLS::calcTransMat(landmarks_[lines_id_], meanpose_, trans);
+    cv::Mat cv_img;
+
+    if ((rand()%10000/ 10000.0) < linear_data_ratio_) {
+      int u = rand()%src_imgs_.size();
+      int v = rand()%dst_imgs_.size();
+      float rt = rand()%10000/10000.0;
+
+      cv::addWeighted(src_imgs_[u], (1-rt), dst_imgs_[v], rt, 0, cv_img);
+
+      /*
+      cv::imshow("a", src_imgs_[u]);
+      cv::imshow("b", dst_imgs_[v]);
+      cv::imshow("a+b", cv_img);
+      cv::waitKey();
+      */
+
+      //set label
+      if (label_size_ > 1) {
+        caffe_set(label_size_, Dtype(0), prefetch_label+item_id*label_size_);
+        prefetch_label[item_id*label_size_ + linear_src_label_] = Dtype(1-rt);
+        prefetch_label[item_id*label_size_ + linear_dst_label_] = Dtype(rt);
+      }
+    }
+    else {
+      /* modified by TDteach
+      cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
+          new_height, new_width, is_color);
+      CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
+      */
+      cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
+          0, 0, is_color);
+      CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
+      if (n_landmarks_ > 0) {
+        cv::Mat trans;
+        TDTOOLS::calcTransMat(landmarks_[lines_id_], meanpose_, trans);
       TDTOOLS::cropImg(cv_img, mm_height_, mm_width_, trans);
+      }
+      if (new_width > 0 && new_height > 0) {
+        cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
+      }
+
+      //set label
+      if (label_size_ > 1) {
+        caffe_set(label_size_, Dtype(0), prefetch_label+item_id*label_size_);
+        prefetch_label[item_id*label_size_ + lines_[lines_id_].second] = Dtype(1);
+      }
+      //=======================split line====================================
     }
-    if (new_width > 0 && new_height > 0) {
-      cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
-    }
-    //=======================split line====================================
+    //cv::imwrite("/home/tdteach/test_imgs/"+lines_[lines_id_].first, cv_img);
 
     read_time += timer.MicroSeconds();
     timer.Start();
@@ -212,7 +287,9 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     this->data_transformer_->Transform(cv_img, &(this->transformed_data_));
     trans_time += timer.MicroSeconds();
 
-    prefetch_label[item_id] = lines_[lines_id_].second;
+    if (label_size_ == 1)
+      prefetch_label[item_id] = lines_[lines_id_].second;
+
     // go to the next iter
     lines_id_++;
     if (lines_id_ >= lines_size) {
