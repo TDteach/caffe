@@ -49,6 +49,12 @@ class ImageDataLayer : public BasePrefetchingDataLayer<Dtype> {
   int mm_height_, mm_width_;
   FacialPose meanpose_;
   vector<FacialPose> landmarks_;
+
+  int label_size_;
+  float linear_data_ratio_;
+  int linear_src_label_, linear_dst_label_;
+  vector<cv::Mat> src_imgs_;
+  vector<cv::Mat> dst_imgs_;
 };
 
 
