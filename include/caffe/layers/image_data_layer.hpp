@@ -43,14 +43,15 @@ class ImageDataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual void load_batch(Batch<Dtype>* batch);
 
   vector<std::pair<std::string, int> > lines_;
+  float shift_scale_;
   int lines_id_;
   int n_images_;
   int n_landmarks_;
   int mm_height_, mm_width_;
-  int label_size_;
   FacialPose meanpose_;
   vector<FacialPose> landmarks_;
 
+  int label_size_;
   float linear_data_ratio_;
   int linear_src_label_, linear_dst_label_;
   vector<cv::Mat> src_imgs_;

@@ -54,6 +54,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
    * Uesd to change the origin image into meanpose sense
    */
   int in_state;
+  shift_scale_ = this->layer_param_.image_data_param().shift_scale();
   n_landmarks_ = this->layer_param_.image_data_param().n_landmarks();
   if (n_landmarks_ > 0) {
     string lkfile = this->layer_param_.image_data_param().landmarks();
@@ -81,7 +82,6 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
   CHECK_GT(in_state, 0);
 
-
   src_imgs_.clear();
   dst_imgs_.clear();
   linear_data_ratio_ = this->layer_param_.image_data_param().linear_data_ratio();
@@ -92,7 +92,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     for (int i = 0; i < n_images_; i++) {
       if (lines_[i].second == linear_src_label_ || lines_[i].second == linear_dst_label_) {
         cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[i].first,
-        0, 0, is_color);
+            0, 0, is_color);
         CHECK(cv_img.data) << "Could not load " << lines_[i].first;
         if (n_landmarks_ > 0) {
           cv::Mat trans;
@@ -102,8 +102,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
         if (new_width > 0 && new_height > 0) {
           cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
         }   
-
-        if (lines_[i].second == linear_src_label_) {
+       if (lines_[i].second == linear_src_label_) {
           src_imgs_.push_back(cv_img);
         }
         if (lines_[i].second == linear_dst_label_) {
@@ -112,7 +111,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       }
     }
   }
-  
+
   //===============split line=====================================
 
 
@@ -146,6 +145,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   cv::Mat cv_img = ReadImageToCVMat(root_folder + lines_[lines_id_].first,
                                     new_height, new_width, is_color);
   CHECK(cv_img.data) << "Could not load " << lines_[lines_id_].first;
+
   // Use data_transformer to infer the expected blob shape from a cv_image.
   vector<int> top_shape = this->data_transformer_->InferBlobShape(cv_img);
   this->transformed_data_.Reshape(top_shape);
@@ -231,19 +231,12 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
 
     cv::Mat cv_img;
 
-    if ((rand()%10000/ 10000.0) < linear_data_ratio_) {
+    if ((rand()%10000/10000.0) < linear_data_ratio_) {
       int u = rand()%src_imgs_.size();
       int v = rand()%dst_imgs_.size();
       float rt = rand()%10000/10000.0;
 
       cv::addWeighted(src_imgs_[u], (1-rt), dst_imgs_[v], rt, 0, cv_img);
-
-      /*
-      cv::imshow("a", src_imgs_[u]);
-      cv::imshow("b", dst_imgs_[v]);
-      cv::imshow("a+b", cv_img);
-      cv::waitKey();
-      */
 
       //set label
       if (label_size_ > 1) {
@@ -264,7 +257,14 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       if (n_landmarks_ > 0) {
         cv::Mat trans;
         TDTOOLS::calcTransMat(landmarks_[lines_id_], meanpose_, trans);
-      TDTOOLS::cropImg(cv_img, mm_height_, mm_width_, trans);
+        /* apply shift transformation
+         */
+        float shift_x = (rand()%1000/500.0-1)*shift_scale_;
+        float shift_y = (rand()%1000/500.0-1)*shift_scale_;
+        trans.at<float>(0,2) += shift_x*mm_width_;
+        trans.at<float>(1,2) += shift_y*mm_height_;
+  
+        TDTOOLS::cropImg(cv_img, mm_height_, mm_width_, trans);
       }
       if (new_width > 0 && new_height > 0) {
         cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
@@ -275,7 +275,6 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
         caffe_set(label_size_, Dtype(0), prefetch_label+item_id*label_size_);
         prefetch_label[item_id*label_size_ + lines_[lines_id_].second] = Dtype(1);
       }
-      //=======================split line====================================
     }
     //cv::imwrite("/home/tdteach/test_imgs/"+lines_[lines_id_].first, cv_img);
 

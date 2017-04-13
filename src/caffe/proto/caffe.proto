@@ -849,11 +849,12 @@ message ImageDataParameter {
   optional uint32 n_landmarks = 13 [default = 0];
   optional string meanpose = 14 [default = ""];
   optional string landmarks = 15 [default = ""];
+  optional float shift_scale = 16 [default = 0];
 
-  optional uint32 label_size = 16 [default = 1];
-  optional float linear_data_ratio = 17 [default = 0];
-  optional uint32 linear_src_label = 18 [default = 0];
-  optional uint32 linear_dst_label = 19 [default = 0];
+  optional uint32 label_size = 17 [default = 1];
+  optional float linear_data_ratio = 18 [default = 0];
+  optional uint32 linear_src_label = 19 [default = 0];
+  optional uint32 linear_dst_label = 20 [default = 0];
 
 //===========================
 
