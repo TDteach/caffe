@@ -241,8 +241,10 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       //set label
       if (label_size_ > 1) {
         caffe_set(label_size_, Dtype(0), prefetch_label+item_id*label_size_);
-        prefetch_label[item_id*label_size_ + linear_src_label_] = Dtype(1-rt);
-        prefetch_label[item_id*label_size_ + linear_dst_label_] = Dtype(rt);
+        if (linear_src_label_ < label_size_)
+          prefetch_label[item_id*label_size_ + linear_src_label_] = Dtype(1-rt);
+        if (linear_dst_label_ < label_size_)
+          prefetch_label[item_id*label_size_ + linear_dst_label_] = Dtype(rt);
       }
     }
     else {
@@ -273,7 +275,8 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       //set label
       if (label_size_ > 1) {
         caffe_set(label_size_, Dtype(0), prefetch_label+item_id*label_size_);
-        prefetch_label[item_id*label_size_ + lines_[lines_id_].second] = Dtype(1);
+        if (lines_[lines_id_].second < label_size_)
+          prefetch_label[item_id*label_size_ + lines_[lines_id_].second] = Dtype(1);
       }
     }
     //cv::imwrite("/home/tdteach/test_imgs/"+lines_[lines_id_].first, cv_img);

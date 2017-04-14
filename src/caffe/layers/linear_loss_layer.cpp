@@ -34,6 +34,7 @@ template <typename Dtype>
 void LinearLossLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom, 
         const vector<Blob<Dtype>*>& top) {
 
+    LossLayer<Dtype>::Reshape(bottom, top); 
     vector<int> shape;
     shape.resize(1);
     shape[0] = 1;

@@ -44,11 +44,13 @@ void SoftmaxWithLossLayer<Dtype>::Reshape(
       bottom[0]->CanonicalAxisIndex(this->layer_param_.softmax_param().axis());
   outer_num_ = bottom[0]->count(0, softmax_axis_);
   inner_num_ = bottom[0]->count(softmax_axis_ + 1);
-  CHECK_EQ(outer_num_ * inner_num_, bottom[1]->count())
+  label_size_ = bottom[1]->count() / outer_num_ / inner_num_;
+  CHECK_EQ(outer_num_ * inner_num_ * label_size_, bottom[1]->count())
       << "Number of labels must match number of predictions; "
       << "e.g., if softmax axis == 1 and prediction shape is (N, C, H, W), "
       << "label count (number of labels) must be N*H*W, "
-      << "with integer values in {0, 1, ..., C-1}.";
+      << "with integer values in {0, 1, ..., C-1}. "
+      << "Or, label count is N*C*H*W with corresponding possibilities.";
   if (top.size() >= 2) {
     // softmax output
     top[1]->ReshapeLike(*bottom[0]);
@@ -96,15 +98,23 @@ void SoftmaxWithLossLayer<Dtype>::Forward_cpu(
   int count = 0;
   Dtype loss = 0;
   for (int i = 0; i < outer_num_; ++i) {
-    for (int j = 0; j < inner_num_; j++) {
-      const int label_value = static_cast<int>(label[i * inner_num_ + j]);
-      if (has_ignore_label_ && label_value == ignore_label_) {
-        continue;
+    for (int j = 0; j < inner_num_; ++j) {
+      if (label_size_ == 1) {
+        const int label_value = static_cast<int>(label[i * inner_num_ + j]);
+        if (has_ignore_label_ && label_value == ignore_label_) {
+          continue;
+        }
+        DCHECK_GE(label_value, 0);
+        DCHECK_LT(label_value, prob_.shape(softmax_axis_));
+        loss -= log(std::max(prob_data[i * dim + label_value * inner_num_ + j],
+                    Dtype(FLT_MIN)));
       }
-      DCHECK_GE(label_value, 0);
-      DCHECK_LT(label_value, prob_.shape(softmax_axis_));
-      loss -= log(std::max(prob_data[i * dim + label_value * inner_num_ + j],
-                           Dtype(FLT_MIN)));
+      else {
+        for (int k = 0; k < label_size_; ++k) {
+          loss -= label[i * dim + k * inner_num_ + j] * log(std::max(
+                    prob_data[i * dim + k * inner_num_ + j], Dtype(FLT_MIN)));
+        }
+      }
       ++count;
     }
   }
@@ -128,18 +138,24 @@ void SoftmaxWithLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const Dtype* label = bottom[1]->cpu_data();
     int dim = prob_.count() / outer_num_;
     int count = 0;
-    for (int i = 0; i < outer_num_; ++i) {
-      for (int j = 0; j < inner_num_; ++j) {
-        const int label_value = static_cast<int>(label[i * inner_num_ + j]);
-        if (has_ignore_label_ && label_value == ignore_label_) {
-          for (int c = 0; c < bottom[0]->shape(softmax_axis_); ++c) {
-            bottom_diff[i * dim + c * inner_num_ + j] = 0;
+    if (label_size_ == 1) {
+      for (int i = 0; i < outer_num_; ++i) {
+        for (int j = 0; j < inner_num_; ++j) {
+          const int label_value = static_cast<int>(label[i * inner_num_ + j]);
+          if (has_ignore_label_ && label_value == ignore_label_) {
+            for (int c = 0; c < bottom[0]->shape(softmax_axis_); ++c) {
+              bottom_diff[i * dim + c * inner_num_ + j] = 0;
+            }
+          } else {
+            bottom_diff[i * dim + label_value * inner_num_ + j] -= 1;
+            ++count;
           }
-        } else {
-          bottom_diff[i * dim + label_value * inner_num_ + j] -= 1;
-          ++count;
         }
       }
+    }
+    else {
+      caffe_axpy(prob_.count(), Dtype(-1), label, bottom_diff);
+      count = outer_num_ * inner_num_;
     }
     // Scale gradient
     Dtype loss_weight = top[0]->cpu_diff()[0] /
