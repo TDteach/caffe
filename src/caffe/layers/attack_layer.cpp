@@ -12,7 +12,8 @@ using namespace std;
 
 
 /*
- * y = 0.5*(tanh(w)+1)
+ * x \in [-1,1]
+ * y = (tanh(w)+input)/(1-tanh(w)*input) = tanh(w + tanh^{-1}(input) )
  * |y-x|^2 + c*f(y), f(y) is the attack_loss function
  * the "weights" shuold be initialized by 0, that means search from the original image.
  */
@@ -28,29 +29,14 @@ void AttackLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   M_ = bottom[0]->count()/N_;
 
 
-  diff_.ReshapeLike(*bottom[0]);
   meta_.ReshapeLike(*bottom[0]);
-
-  has_init_ = false;
-  orig_.ReshapeLike(*bottom[0]);
   tvalue_.ReshapeLike(*bottom[0]);
-
-  best_.resize(N_);
-  l2loss_.resize(N_);
-  for (int i = 0; i < best_.size(); i++)
-    best_[i] = Dtype(999999);
-
-  FILE *fp = fopen("/home/tdteach/workspace/AT-ResNet-caffe/rst.txt","w");
-  for (int i = 0; i < N_; i++) {
-    fprintf(fp, "%f\n", best_[i]);
-  }
-  fclose(fp);
 
   if (this->blobs_.size() > 0) {
     LOG(INFO) << "Skipping parameter initialization";
   } else {
     // Initialize the weights
-	this->blobs_.resize(1);
+	  this->blobs_.resize(1);
     this->blobs_[0].reset(new Blob<Dtype>(bottom_shape));
 
     // fill the weights
@@ -87,27 +73,17 @@ void AttackLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
   const Dtype* bottom_data = bottom[0]->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
-  Dtype* L2_loss = top[1]->mutable_cpu_data();
+  Dtype* diff_data = top[1]->mutable_cpu_data();
   const Dtype* weight = this->blobs_[0]->cpu_data();
-  Dtype* meta = meta_.mutable_cpu_data();
 
   for (int i = 0; i < N_*M_; i++) {
-	  Dtype a = 2*bottom_data[i]-1;
+	  Dtype a = bottom_data[i];
 	  Dtype b = tanh(weight[i]);
 
-    meta[i] = (a+b)/(1+a*b);
-	  top_data[i] = 0.5*meta[i]+0.5;
-
-
+    top_data[i] = (a+b)/(1+a*b);
   }
 
-  Dtype* diff = diff_.mutable_cpu_data();
-
-  caffe_sub(N_*M_, top_data, bottom_data, diff);
-  for (int i = 0; i < N_; i++) {
-    L2_loss[i] = caffe_cpu_dot(M_, diff+i*M_, diff+i*M_);
-    l2loss_[i] = L2_loss[i];
-  }
+  caffe_sub(N_*M_, top_data, bottom_data, diff_data);
 }
 
 template <typename Dtype>
@@ -115,18 +91,17 @@ void AttackLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
 
+    const Dtype* top_data = top[0]->cpu_data();
     const Dtype* top_diff = top[0]->cpu_diff();
-    const Dtype* diff = diff_.cpu_data();
-    const Dtype* meta = meta_.cpu_data();
+    const Dtype* diff_diff = top[1]->cpu_diff();
 	  Dtype* blob_diff = this->blobs_[0]->mutable_cpu_diff();
 
     // Gradient with respect to weight
 	  for (int i = 0; i < N_*M_; i++) {
-		  blob_diff[i] = (0.5*top_diff[i]+diff[i])*(1-meta[i]*meta[i]);
-		  //blob_diff[i] = diff[i]*(1-meta[i]*meta[i]);
+		  blob_diff[i] = (top_diff[i]+diff_diff[i])*(1-top_data[i]*top_data[i]);
 	  }
 
-    store_file(top, propagate_down, bottom);
+//    store_file(top, propagate_down, bottom);
 }
 
 

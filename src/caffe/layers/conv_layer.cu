@@ -20,6 +20,14 @@ void ConvolutionLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       }
     }
   }
+
+/* debug
+  const Dtype* ct = bottom[0]->cpu_data();
+  for (int i = 0; i <128; i++){
+    std::cout << ct[i*128] << std::endl;
+  }
+  exit(0);
+*/
 }
 
 template <typename Dtype>

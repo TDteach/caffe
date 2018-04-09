@@ -19,7 +19,7 @@ template <typename Dtype>
 class AttackLayer : public Layer<Dtype> {
  public:
   explicit AttackLayer(const LayerParameter& param)
-      : Layer<Dtype>(param), diff_() {}
+      : Layer<Dtype>(param){}
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
@@ -46,9 +46,7 @@ class AttackLayer : public Layer<Dtype> {
   int N_;
   int M_;
   
-  Blob<Dtype> diff_;
   Blob<Dtype> meta_;
-  Blob<Dtype> orig_; 
   Blob<Dtype> tvalue_;
   bool has_init_;
   vector<Dtype> best_;

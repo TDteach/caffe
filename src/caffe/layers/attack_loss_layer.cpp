@@ -50,7 +50,7 @@ void AttackLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
 
   const Dtype* bottom_data = bottom[0]->cpu_data();
-  const Dtype* L2_loss = bottom[2]->cpu_data();
+  const Dtype* diff_data = bottom[1]->cpu_data();
   int num = bottom[0]->num();
   int count = bottom[0]->count();
   int dim = count / num;
@@ -59,24 +59,16 @@ void AttackLossLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
 
   caffe_set<Dtype>(num, Dtype(0), loss);
   for (int i = 0; i < num; ++i) {
-    int max_id = tgt_;
+    int max_id = tgt_+1;
+    if (max_id > dim) cc_[i] = 0;
     for (int j = 0; j < dim; ++j) {
+      if (j == tgt_) continue;
       if (bottom_data[i*dim+j] > bottom_data[i*dim+max_id]) {
         max_id = j;
       }
     }
-    if (max_id != tgt_) {
-        loss[i] = (bottom_data[i*dim+max_id]-bottom_data[i*dim+tgt_])*C[i];
-    }
-    else {
-      ++cc_[i];
-      if (cc_[i] > 19) {
-        if (C[i] > 1e-5) C[i] *= 0.1;
-        LOG(INFO) << C[i] ;
-        cc_[i] = 0;
-      }
-    }
-    loss[i] += L2_loss[i];
+    loss[i] = (bottom_data[i*dim+tgt_]-bottom_data[i*dim+max_id])*C[i];
+    loss[i] += caffe_cpu_dot(dim, diff_data, diff_data);
 
   }
 
@@ -87,38 +79,21 @@ void AttackLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
 
     const Dtype* bottom_data = bottom[0]->cpu_data();
+    const Dtype* diff_data = bottom[1]->cpu_data();
     Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
-    Dtype* l2_diff = bottom[2]->mutable_cpu_diff();
+    Dtype* diff_diff = bottom[1]->mutable_cpu_diff();
     int num = bottom[0]->num();
     int count = bottom[0]->count();
     int dim = count / num;
     const Dtype* C = C_.cpu_data();
 
-    caffe_set<Dtype>(num, Dtype(1), l2_diff);
+    caffe_copy(count, diff_data, diff_diff);
+    caffe_cpu_scale(count, Dtype(2), diff_diff, diff_diff);
+
 	  caffe_set<Dtype>(count, Dtype(0), bottom_diff);
     for (int i = 0; i < num; i++) {
-        int max_id = tgt_;
-        for (int j = 0; j < dim; j++) {
-            if (bottom_data[i*dim+j] > bottom_data[i*dim+max_id]) {
-                max_id = j;
-            }
-        }
-        if (max_id != tgt_){
-            bottom_diff[i*dim+max_id] = C[i];
-            bottom_diff[i*dim+tgt_] = -C[i];
-        }
-        else {
-          l2_diff[i] = 0;
-        }
-/*
-        if (l2_diff[i] < 0.5) {
-        for (int j = 0; j < dim; j++) {
-          cout << bottom_data[i*dim+j] << " ";
-        }
-        cout << endl;
-        getchar();
-        }
-        */
+        bottom_diff[i*dim+cc_[i]] = -C[i];
+        bottom_diff[i*dim+tgt_] = C[i];
 	  } 
 }
 

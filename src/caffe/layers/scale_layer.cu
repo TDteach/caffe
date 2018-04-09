@@ -53,6 +53,14 @@ void ScaleLayer<Dtype>::Forward_gpu(
         <<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
         count, bottom_data, scale_data, scale_dim_, inner_dim_, top_data);
   }
+
+/* debug
+  const Dtype* ct = top[0]->cpu_data();
+  for (int i = 0; i <64; i++) {
+    std::cout << ct[i] << std::endl;
+  }
+  exit(0);
+  */
 }
 
 template <typename Dtype>

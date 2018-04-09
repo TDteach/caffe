@@ -87,6 +87,17 @@ void BatchNormLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   //                 might clobber the data.  Can we skip this if they won't?
   caffe_copy(x_norm_.count(), top_data,
       x_norm_.mutable_gpu_data());
+
+
+  /*
+   * debug
+  const Dtype* ct = top[0]->cpu_data();
+  for (int i = 0; i <64; i++) {
+    std::cout << ct[i] << std::endl;
+  }
+  exit(0);
+  */
+
 }
 
 template <typename Dtype>

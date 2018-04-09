@@ -29,6 +29,14 @@ void ReLULayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
   //     << " top_data: " << (unsigned long)top_data
   //     << " blocks: " << CAFFE_GET_BLOCKS(count)
   //     << " threads: " << CAFFE_CUDA_NUM_THREADS;
+
+/*
+  const Dtype* ct = top[0]->cpu_data();
+  for (int i = 0; i < 64; i++) {
+    std::cout << ct[i] << std::endl;
+  }
+  exit(0);
+*/
 }
 
 template <typename Dtype>

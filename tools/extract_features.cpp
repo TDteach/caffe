@@ -148,6 +148,8 @@ int feature_extraction_pipeline(int argc, char** argv) {
         datum.set_channels(feature_blob->channels());
         datum.clear_data();
         datum.clear_float_data();
+
+
         feature_blob_data = feature_blob->cpu_data() +
             feature_blob->offset(n);
         for (int d = 0; d < dim_features; ++d) {
@@ -156,7 +158,16 @@ int feature_extraction_pipeline(int argc, char** argv) {
         string key_str = caffe::format_int(image_indices[i], 10);
 
         string out;
+
         CHECK(datum.SerializeToString(&out));
+/*
+        for (int ii = 0; ii < 64; ii++){
+          std::cout << datum.float_data(ii) << std::endl;
+        }
+        exit(0);
+*/
+
+
         txns.at(i)->Put(key_str, out);
         ++image_indices[i];
         if (image_indices[i] % 1000 == 0) {

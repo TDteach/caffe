@@ -1,4 +1,4 @@
-function [ output_args ] = draw_roc(db_path, list_path, varargin )
+function [tpr, fpr] = draw_roc(db_path, list_path, dim, varargin )
 %DRAW_ROC Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -23,22 +23,24 @@ fclose(fid);
 
 db = lmdb.DB(db_path,'MAPSIZE',1024^3);
 
-fea = zeros(n,256);
+fea = zeros(n,dim);
 i = 0;
 cs = db.cursor('RDONLY',true);
 while cs.next()
-    a = cs.value;
     i = i+1;
-    fea(i,:) = caffe_pb.fromDatum(a);
+    %the same way to use the readdatum function
+    %datum = readdatum(cs.value);
+    %fea(i,:) = datum.float_data(:);
+    a = cs.value;
+    fea(i,:) = flip(caffe_pb.fromDatum(a));
     fea(i,:) = fea(i,:)./norm(fea(i,:));
 end
 clear cs;
 n = i;
 fea = fea(1:n,:);
 
-
 m = n;
-if nargin > 2
+if nargin > 3
     m = int32(varargin{1});
 end
 

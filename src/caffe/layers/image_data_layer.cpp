@@ -42,8 +42,7 @@ void ImageDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   n_images_ = 0;
   while (std::getline(infile, line)) {
     n_images_++;
-    pos = line.find_last_of(' ');
-    label = atoi(line.substr(pos + 1).c_str());
+    pos = line.find_last_of(' '); label = atoi(line.substr(pos + 1).c_str());
     lines_.push_back(std::make_pair(line.substr(0, pos), label));
     //if (n_images_ == 1000) break;
   }
@@ -272,6 +271,35 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
         cv::resize(cv_img, cv_img, cv::Size(new_width, new_height));
       }
 
+      /* Debug
+    
+      for (int i = 0; i < 128; i++) {
+        cv::Vec3b zz = cv_img.at<Vec3b>(i,0);
+        cout << uint(zz[0]) << endl;
+      }
+     
+      int type = cv_img.type();
+      string r;
+      uchar depth = type & CV_MAT_DEPTH_MASK;
+      uchar chans = 1 + (type >> CV_CN_SHIFT);
+      switch ( depth ) {
+            case CV_8U:  r = "8U"; break;
+            case CV_8S:  r = "8S"; break;
+            case CV_16U: r = "16U"; break;
+            case CV_16S: r = "16S"; break;
+            case CV_32S: r = "32S"; break;
+            case CV_32F: r = "32F"; break;
+            case CV_64F: r = "64F"; break;
+            default:     r = "User"; break;
+      }
+      r += "C";
+      r += (chans+'0');
+      cout << r << endl;
+
+      cv::imshow("haha",cv_img);
+      cv::waitKey();
+      */
+
       //set label
       if (label_size_ > 1) {
         caffe_set(label_size_, Dtype(0), prefetch_label+item_id*label_size_);
@@ -279,7 +307,12 @@ void ImageDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
           prefetch_label[item_id*label_size_ + lines_[lines_id_].second] = Dtype(1);
       }
     }
-    //cv::imwrite("/home/tdteach/test_imgs/"+lines_[lines_id_].first, cv_img);
+    /*
+    char s[10];
+    sprintf(s,"%d.jpg",lines_id_);
+    string ss = string(s);
+    cv::imwrite("/home/tdteach/test_imgs/"+ss, cv_img);
+    */
 
     read_time += timer.MicroSeconds();
     timer.Start();

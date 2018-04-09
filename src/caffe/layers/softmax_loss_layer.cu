@@ -14,8 +14,7 @@ __global__ void SoftmaxLossForwardGPU(const int nthreads,
           const bool has_ignore_label_, const int ignore_label_,
           Dtype* counts) {
   CUDA_KERNEL_LOOP(index, nthreads) {
-    const int n = index / spatial_dim;
-    const int s = index % spatial_dim;
+    const int n = index / spatial_dim; const int s = index % spatial_dim;
     const int label_value = static_cast<int>(label[n * spatial_dim + s]);
     if (has_ignore_label_ && label_value == ignore_label_) {
       loss[index] = 0;
@@ -40,10 +39,17 @@ template <typename Dtype>
 void SoftmaxWithLossLayer<Dtype>::Forward_gpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
   softmax_layer_->Forward(softmax_bottom_vec_, softmax_top_vec_);
+
   const Dtype* prob_data = prob_.gpu_data();
   const Dtype* label = bottom[1]->gpu_data();
   const int dim = prob_.count() / outer_num_;
   const int nthreads = outer_num_ * inner_num_ * label_size_;
+
+  //std::cout << outer_num_ << std::endl;
+  //std::cout << inner_num_ << std::endl;
+  //std::cout << label_size_ << std::endl;
+
+
   // Since this memory is not used for anything until it is overwritten
   // on the backward pass, we use it here to avoid having to allocate new GPU
   // memory to accumulate intermediate results in the kernel.
@@ -73,6 +79,12 @@ void SoftmaxWithLossLayer<Dtype>::Forward_gpu(
       has_ignore_label_) {
     caffe_gpu_asum(nthreads, counts, &valid_count);
   }
+  
+  //std::cout<< "==================" << std::endl;
+  //std::cout<< loss << std::endl;
+  //std::cout<< get_normalizer(normalization_, valid_count) << std::endl;
+  //std::cout<< "==================" << std::endl;
+
   top[0]->mutable_cpu_data()[0] = loss / get_normalizer(normalization_,
                                                         valid_count);
   if (top.size() == 2) {
